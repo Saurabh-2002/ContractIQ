@@ -1,0 +1,19 @@
+# Secrets
+.env
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# Local runtime data (contains uploaded contract text)
+data/vector_store/
+
+# Editor and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

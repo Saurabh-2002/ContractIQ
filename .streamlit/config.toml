@@ -1,0 +1,15 @@
+[theme]
+base = "light"
+primaryColor = "#2563EB"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F5F7FB"
+textColor = "#0F2342"
+font = "sans-serif"
+
+[server]
+# Stops Streamlit's file watcher from inspecting PyTorch internals.
+fileWatcherType = "none"
+maxUploadSize = 25
+
+[browser]
+gatherUsageStats = false

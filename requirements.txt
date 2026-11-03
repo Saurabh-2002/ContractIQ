@@ -1,0 +1,13 @@
+# ContractIQ runtime and test dependencies.
+# Recommended interpreter: Python 3.12 (64-bit).
+streamlit>=1.57,<2
+pymupdf>=1.26,<2
+langchain-core>=1.0,<2
+langchain-text-splitters>=1.0,<2
+langchain-google-genai>=4.0,<5
+sentence-transformers>=3.0
+faiss-cpu>=1.9,<2
+python-dotenv>=1.0
+pandas>=2.2
+numpy>=1.26
+pytest>=8.0
