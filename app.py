@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import html
+import json
 from datetime import datetime
+from pathlib import Path
 
 import pandas as pd
 import streamlit as st
@@ -36,23 +38,138 @@ STATUS_LABELS = {
 
 CSS = """
 <style>
-  .block-container { padding-top: 2.2rem; max-width: 1120px; }
-  h1, h2, h3 { color: #0F2342; letter-spacing: -0.01em; }
-  [data-testid="stSidebar"] { border-right: 1px solid #E4E9F2; }
-  .ciq-tagline { color: #52627A; margin-top: -0.6rem; margin-bottom: 1.4rem; }
+  @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+
+  html, body, [class*="css"] {
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+
+  .block-container {
+    padding-top: 1.8rem;
+    padding-bottom: 3rem;
+    max-width: 1180px;
+  }
+
+  /* Headings & Brand */
+  h1, h2, h3 {
+    color: #0F172A;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+
+  .ciq-tagline {
+    color: #475569;
+    font-size: 1.05rem;
+    margin-top: -0.5rem;
+    margin-bottom: 1.5rem;
+  }
+
+  /* Metric & Feature Cards */
   .ciq-card {
-    background: #FFFFFF; border: 1px solid #E4E9F2; border-radius: 12px;
-    padding: 1.05rem 1.2rem;
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 14px;
+    padding: 1.25rem 1.4rem;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 1px 2px rgba(15, 23, 42, 0.02);
+    transition: all 0.2s ease-in-out;
   }
-  .ciq-metric-label { color: #52627A; font-size: 0.85rem; }
-  .ciq-metric-value { color: #0F2342; font-size: 2rem; font-weight: 650; }
+  .ciq-card:hover {
+    border-color: #CBD5E1;
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+    transform: translateY(-2px);
+  }
+
+  .ciq-card-icon {
+    font-size: 1.4rem;
+    margin-bottom: 0.5rem;
+    display: inline-block;
+  }
+
+  .ciq-metric-label {
+    color: #64748B;
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .ciq-metric-value {
+    color: #0F172A;
+    font-size: 2.2rem;
+    font-weight: 750;
+    line-height: 1.2;
+    margin-top: 0.2rem;
+  }
+
+  /* Status Badges */
   .ciq-badge {
-    display: inline-block; border-radius: 999px; padding: 0.08rem 0.65rem;
-    font-size: 0.78rem; font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    border-radius: 999px;
+    padding: 0.18rem 0.75rem;
+    font-size: 0.78rem;
+    font-weight: 650;
   }
-  .ciq-high { background: #FEE4E2; color: #912018; }
-  .ciq-medium { background: #FEF0C7; color: #93370D; }
-  .ciq-low { background: #DBEAFE; color: #1E40AF; }
+  .ciq-high { background: #FEE2E2; color: #991B1B; border: 1px solid #FCA5A5; }
+  .ciq-medium { background: #FEF3C7; color: #92400E; border: 1px solid #FCD34D; }
+  .ciq-low { background: #DBEAFE; color: #1E40AF; border: 1px solid #93C5FD; }
+  .ciq-success { background: #DCFCE7; color: #166534; border: 1px solid #86EFAC; }
+  .ciq-neutral { background: #F1F5F9; color: #475569; border: 1px solid #CBD5E1; }
+
+  /* Risk Summary Banner */
+  .risk-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .risk-pill-box {
+    padding: 0.9rem 1.1rem;
+    border-radius: 12px;
+    font-weight: 600;
+    display: flex;
+    flex-direction: column;
+  }
+  .risk-pill-box.high { background: #FEF2F2; border-left: 4px solid #EF4444; color: #991B1B; }
+  .risk-pill-box.medium { background: #FFFBEB; border-left: 4px solid #F59E0B; color: #92400E; }
+  .risk-pill-box.low { background: #EFF6FF; border-left: 4px solid #3B82F6; color: #1E40AF; }
+
+  /* Prompt Chips */
+  .prompt-chip {
+    display: inline-block;
+    background: #F8FAFC;
+    border: 1px solid #E2E8F0;
+    border-radius: 20px;
+    padding: 0.35rem 0.85rem;
+    margin: 0.2rem 0.2rem;
+    font-size: 0.85rem;
+    color: #334155;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .prompt-chip:hover {
+    background: #EFF6FF;
+    border-color: #BFDBFE;
+    color: #1D4ED8;
+  }
+
+  /* Quote Styling */
+  blockquote {
+    border-left: 3px solid #3B82F6 !important;
+    background-color: #F8FAFC;
+    padding: 0.6rem 1rem !important;
+    border-radius: 0 8px 8px 0;
+    color: #334155;
+    font-style: normal;
+  }
+
+  /* Sidebar styling */
+  [data-testid="stSidebar"] {
+    background-color: #F8FAFC;
+    border-right: 1px solid #E2E8F0;
+  }
 </style>
 """
 
@@ -73,6 +190,7 @@ def init_state() -> None:
         "upload_results": [],
         "uploader_key": 0,
         "analysis": {},
+        "active_prompt": None,
     }
     for key, value in defaults.items():
         st.session_state.setdefault(key, value)
@@ -107,10 +225,13 @@ def format_date(value: str) -> str:
         return value
 
 
-def metric_card(column, label: str, value: int) -> None:
+def metric_card(column, label: str, value: int, icon: str = "📊") -> None:
     column.markdown(
-        f'<div class="ciq-card"><div class="ciq-metric-label">{html.escape(label)}'
-        f'</div><div class="ciq-metric-value">{value}</div></div>',
+        f'<div class="ciq-card">'
+        f'<div class="ciq-card-icon">{icon}</div>'
+        f'<div class="ciq-metric-label">{html.escape(label)}</div>'
+        f'<div class="ciq-metric-value">{value}</div>'
+        f'</div>',
         unsafe_allow_html=True,
     )
 
@@ -131,54 +252,88 @@ def page_header(title: str, subtitle: str) -> None:
     )
 
 
+def load_sample_contracts(manager: DocumentManager) -> list[tuple[str, str]]:
+    samples_dir = Path(__file__).resolve().parent / "data" / "sample_contracts"
+    if not samples_dir.exists():
+        return [("failed", "Sample contracts directory not found.")]
+
+    outcomes = []
+    for pdf_file in sorted(samples_dir.glob("*.pdf")):
+        res = manager.ingest(pdf_file.name, pdf_file.read_bytes())
+        outcomes.append((res.status, res.message))
+    return outcomes
+
+
 def render_dashboard(manager: DocumentManager) -> None:
     page_header(
         "ContractIQ",
-        "Understand Contracts. Extract Insights. Make Informed Decisions.",
+        "AI-Powered Document Intelligence & Risk Analysis Platform",
     )
 
     documents = manager.documents()
     columns = st.columns(3)
-    metric_card(columns[0], "Uploaded contracts", len(documents))
-    metric_card(columns[1], "Indexed chunks", manager.total_chunks)
-    metric_card(columns[2], "Questions asked", st.session_state.questions_asked)
+    metric_card(columns[0], "Uploaded contracts", len(documents), icon="📁")
+    metric_card(columns[1], "Indexed vector chunks", manager.total_chunks, icon="🧩")
+    metric_card(columns[2], "Inquiries answered", st.session_state.questions_asked, icon="💬")
 
-    st.subheader("Recent documents")
+    st.markdown("---")
+
+    # Quick sample loader if empty
+    if not documents:
+        st.info("💡 **Getting started:** Your workspace is clean. Click below to load 3 ready-made enterprise contracts.")
+        if st.button("🚀 Load 3 Sample Contracts", type="primary", use_container_width=False):
+            with st.spinner("Ingesting and indexing sample contracts..."):
+                load_sample_contracts(manager)
+            st.success("Sample contracts indexed successfully!")
+            st.rerun()
+
+    st.subheader("Recent Contracts")
     if documents:
         table = pd.DataFrame(
             [
                 {
-                    "Document": d.filename,
+                    "Document Name": d.filename,
                     "Pages": d.page_count,
-                    "Status": d.status,
-                    "Uploaded": format_date(d.uploaded_at),
+                    "Chunks Indexed": d.chunk_count,
+                    "Status": d.status.title(),
+                    "Added": format_date(d.uploaded_at),
                 }
-                for d in documents[:5]
+                for d in documents[:6]
             ]
         )
-        st.dataframe(table, hide_index=True, width="stretch")
+        st.dataframe(table, hide_index=True, use_container_width=True)
     else:
-        st.info("No contracts yet. Upload one in the Document Library to begin.")
+        st.caption("No contracts uploaded yet. Navigate to the Document Library to upload PDFs.")
 
-    st.subheader("Quick navigation")
-    columns = st.columns(3)
-    for column, target in zip(columns, (LIBRARY, INTELLIGENCE, ASSISTANT)):
-        column.button(
-            target, on_click=go_to, args=(target,), key=f"nav_{target}", width="stretch"
-        )
+    st.subheader("Quick Actions")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        with st.container(border=True):
+            st.markdown("### 📁 Document Library")
+            st.caption("Upload new contracts, review chunks, and toggle search selection.")
+            st.button("Open Library", on_click=go_to, args=(LIBRARY,), use_container_width=True)
+    with col2:
+        with st.container(border=True):
+            st.markdown("### 🧠 Intelligence")
+            st.caption("Extract executive summaries, 9 standard clauses, and risk findings.")
+            st.button("Review Intelligence", on_click=go_to, args=(INTELLIGENCE,), use_container_width=True)
+    with col3:
+        with st.container(border=True):
+            st.markdown("### 💬 AI Assistant")
+            st.caption("Chat with verified citations referencing source pages directly.")
+            st.button("Launch Assistant", on_click=go_to, args=(ASSISTANT,), use_container_width=True)
 
 
 def process_uploads(manager: DocumentManager, files: list) -> None:
     outcomes: list[tuple[str, str]] = []
-    with st.status(f"Processing {len(files)} file(s)...", expanded=True) as status:
+    with st.status(f"Processing {len(files)} document(s)...", expanded=True) as status:
         for file in files:
-            st.write(f"Processing {file.name}...")
+            st.write(f"Extracting and indexing **{file.name}**...")
             result = manager.ingest(file.name, file.getvalue())
             outcomes.append((result.status, result.message))
-        status.update(label="Processing finished.", state="complete", expanded=False)
+        status.update(label="Document ingestion complete!", state="complete", expanded=False)
 
     st.session_state.upload_results = outcomes
-    # A new key clears the uploader so that files are not processed twice.
     st.session_state.uploader_key += 1
 
 
@@ -188,60 +343,69 @@ def remove_document(manager: DocumentManager, doc_id: str) -> None:
 
 
 def render_library(manager: DocumentManager) -> None:
-    page_header("Document Library", "Upload and manage your PDF contracts.")
+    page_header("Document Library", "Upload, inspect, and manage contract vector indices.")
+
+    top_col1, top_col2 = st.columns([4, 2], vertical_alignment="bottom")
+    with top_col2:
+        if st.button("📥 Load Sample Contracts", use_container_width=True):
+            with st.spinner("Ingesting sample agreements..."):
+                results = load_sample_contracts(manager)
+                st.session_state.upload_results = results
+            st.rerun()
 
     files = st.file_uploader(
-        "Upload PDF contracts",
+        "Upload PDF Contracts",
         type=["pdf"],
         accept_multiple_files=True,
         key=f"uploader_{st.session_state.uploader_key}",
-        help="Text-based PDFs only. Scanned PDFs are not supported.",
+        help="Text-based PDFs only. Scanned image-only PDFs require OCR.",
     )
-    st.caption(
-        "The first upload downloads the embedding model (about 90 MB), so it "
-        "takes longer."
-    )
-    if files and st.button("Process documents", type="primary"):
-        process_uploads(manager, files)
-        st.rerun()
+
+    if files:
+        if st.button("⚡ Index Uploaded Documents", type="primary", use_container_width=True):
+            process_uploads(manager, files)
+            st.rerun()
 
     show_message = {"indexed": st.success, "duplicate": st.info, "failed": st.error}
     for status, message in st.session_state.upload_results:
         show_message[status](message)
 
-    st.subheader("Your documents")
+    st.markdown("---")
+    st.subheader("Indexed Documents")
     documents = manager.documents()
     if not documents:
-        st.info("No documents have been processed yet.")
+        st.info("No documents are currently indexed.")
         return
 
-    st.caption("Ticked documents are searched by the AI Assistant.")
+    st.caption("Check or uncheck contracts to scope the AI Assistant's semantic search.")
     selected = set(selected_ids(manager))
+
     for document in documents:
         with st.container(border=True):
             info, tick, remove = st.columns([6, 2, 1.4], vertical_alignment="center")
-            info.markdown(f"**{html.escape(document.filename)}**")
+            info.markdown(f"📄 **{html.escape(document.filename)}**")
             info.caption(
-                f"{document.status} · {document.page_count} pages · "
-                f"{document.chunk_count} chunks"
+                f"Status: `{document.status}` · {document.page_count} pages · "
+                f"{document.chunk_count} vector chunks"
             )
             widget_key = f"select_{document.doc_id}"
             st.session_state[widget_key] = document.doc_id in selected
             tick.checkbox(
-                "Selected",
+                "Include in Search",
                 key=widget_key,
                 on_change=toggle_selection,
                 args=(manager, document.doc_id, widget_key),
             )
             remove.button(
-                "Remove",
+                "Delete",
                 key=f"remove_{document.doc_id}",
                 on_click=remove_document,
                 args=(manager, document.doc_id),
+                type="secondary",
             )
             if document.empty_pages:
                 pages = ", ".join(str(page) for page in document.empty_pages)
-                st.warning(f"No text was found on page(s) {pages}.")
+                st.warning(f"Note: No readable text was detected on page(s) {pages}.")
 
 
 def run_analysis(manager: DocumentManager, record: DocumentRecord) -> dict:
@@ -265,15 +429,23 @@ def run_analysis(manager: DocumentManager, record: DocumentRecord) -> dict:
 
 
 def render_clause(field: ExtractedField) -> None:
-    status = STATUS_LABELS[field.status]
-    with st.expander(f"{field.label}: {status}", expanded=field.status != "not_found"):
+    status_badge = {
+        "found": '<span class="ciq-badge ciq-success">✓ Found</span>',
+        "not_found": '<span class="ciq-badge ciq-neutral">✗ Not found</span>',
+        "needs_review": '<span class="ciq-badge ciq-medium">⚠ Needs review</span>',
+    }.get(field.status, "")
+
+    with st.expander(f"{field.label} — {STATUS_LABELS.get(field.status, field.status)}", expanded=(field.status == "needs_review")):
+        st.markdown(status_badge, unsafe_allow_html=True)
         if field.status == "not_found":
             st.write(field.value)
             return
+        st.markdown(f"**Extracted Terms:**")
         show_literal(field.value)
         if field.page is not None:
-            st.caption(f"Source: page {field.page}")
+            st.caption(f"📍 **Citation**: Page {field.page}")
         if field.quote:
+            st.markdown("**Verbatim Clause Context:**")
             show_quote(field.quote)
         if field.note:
             st.warning(field.note)
@@ -283,19 +455,22 @@ def render_finding(finding: RiskFinding) -> None:
     badge = BADGE_CLASSES[finding.level]
     with st.container(border=True):
         st.markdown(
-            f'<span class="ciq-badge {badge}">{html.escape(finding.level)}</span> '
-            f"<strong>{html.escape(finding.issue)}</strong>",
+            f'<span class="ciq-badge {badge}">{html.escape(finding.level)} ATTENTION</span> '
+            f"<strong style='font-size: 1.05rem; margin-left: 0.4rem;'>{html.escape(finding.issue)}</strong>",
             unsafe_allow_html=True,
         )
-        st.write("**Why it deserves attention**")
+        st.markdown("<div style='margin-top: 0.6rem;'></div>", unsafe_allow_html=True)
+        st.write("**Why this requires review:**")
         show_literal(finding.reason)
+
         if finding.is_missing_item:
-            location = "Not stated anywhere in the document"
+            location = "Not stated anywhere in document"
         elif finding.verified:
             location = f"Page {finding.page}"
         else:
-            location = "Not verified: the supporting text was not found in the document"
-        st.caption(f"Source: {finding.filename} · {location}")
+            location = "Unverified: Quote text could not be mapped to document"
+
+        st.caption(f"Source: `{finding.filename}` · {location}")
         if finding.quote:
             show_quote(finding.quote)
 
@@ -303,72 +478,167 @@ def render_finding(finding: RiskFinding) -> None:
 def render_intelligence(manager: DocumentManager) -> None:
     page_header(
         "Contract Intelligence",
-        "Summaries, key clauses and points that may need human review.",
+        "Executive summaries, structured clause extraction, and automated risk detection.",
     )
     documents = manager.documents()
     if not documents:
-        st.info("Upload a contract in the Document Library first.")
+        st.info("Please upload or load a contract in the Document Library first.")
         return
 
     names = {d.doc_id: d.filename for d in documents}
-    doc_id = st.selectbox(
-        "Selected contract", list(names), format_func=lambda key: names[key]
-    )
+    col_sel, col_btn = st.columns([4, 2], vertical_alignment="bottom")
+    with col_sel:
+        doc_id = st.selectbox(
+            "Select contract to inspect:", list(names), format_func=lambda key: names[key]
+        )
     record = manager.get(doc_id)
 
-    if st.button("Analyse contract", type="primary"):
-        with st.spinner("Analysing the contract. This can take a minute..."):
-            try:
-                st.session_state.analysis[doc_id] = run_analysis(manager, record)
-            except (LLMError, EmbeddingError) as exc:
-                st.error(str(exc))
+    with col_btn:
+        if st.button("🔍 Run Full Intelligence Audit", type="primary", use_container_width=True):
+            with st.spinner("Extracting insights and performing legal risk audit..."):
+                try:
+                    st.session_state.analysis[doc_id] = run_analysis(manager, record)
+                except (LLMError, EmbeddingError) as exc:
+                    st.error(str(exc))
 
     results = st.session_state.analysis.get(doc_id)
     if not results:
-        st.caption("Results appear here after you run the analysis.")
+        st.info("👆 Click **'Run Full Intelligence Audit'** to analyze this contract.")
         return
 
     if results["is_partial"]:
         st.warning(
-            "This contract is very long, so only its first page and the most "
-            "relevant passages were analysed. \"Not found\" may not mean absent."
+            "⚠️ This contract exceeds standard analysis size. The audit focused on core terms and "
+            "most relevant passages. 'Not found' does not guarantee complete absence."
         )
 
     errors = results["errors"]
 
-    st.subheader("Executive summary")
-    if "summary" in results:
-        st.markdown(sanitize_markdown(results["summary"].text))
-    else:
-        st.error(errors.get("summary", "The summary is unavailable."))
+    # Tabs for modern interactive browsing
+    tab_summary, tab_clauses, tab_risks, tab_export = st.tabs([
+        "📋 Executive Summary",
+        "📑 Key Clauses (9 Fields)",
+        "🛡️ Risk Findings",
+        "📤 Export Report",
+    ])
 
-    st.subheader("Extracted clauses")
-    if "clauses" in results:
-        for field in results["clauses"]:
-            render_clause(field)
-    else:
-        st.error(errors.get("clauses", "Extraction is unavailable."))
+    with tab_summary:
+        st.subheader("Executive Briefing")
+        if "summary" in results:
+            st.markdown(sanitize_markdown(results["summary"].text))
+        else:
+            st.error(errors.get("summary", "Summary unavailable."))
 
-    st.subheader("Potential risk findings")
-    st.caption(DISCLAIMER)
-    if "risks" not in results:
-        st.error(errors.get("risks", "Risk analysis is unavailable."))
-    elif not results["risks"]:
-        st.info("No findings were returned. This does not mean the contract is safe.")
-    else:
-        for finding in results["risks"]:
-            render_finding(finding)
+    with tab_clauses:
+        st.subheader("Key Contract Clauses")
+        if "clauses" in results:
+            clause_list = results["clauses"]
+            found_count = sum(1 for c in clause_list if c.status == "found")
+            review_count = sum(1 for c in clause_list if c.status == "needs_review")
+            missing_count = sum(1 for c in clause_list if c.status == "not_found")
+
+            cols = st.columns(3)
+            cols[0].metric("Verified Found", found_count)
+            cols[1].metric("Needs Human Review", review_count)
+            cols[2].metric("Not Found", missing_count)
+
+            # Filter pills
+            filter_choice = st.radio(
+                "Filter clauses:",
+                ["All", "Found Only", "Needs Review", "Not Found"],
+                horizontal=True,
+            )
+
+            for field in clause_list:
+                if filter_choice == "Found Only" and field.status != "found":
+                    continue
+                if filter_choice == "Needs Review" and field.status != "needs_review":
+                    continue
+                if filter_choice == "Not Found" and field.status != "not_found":
+                    continue
+                render_clause(field)
+        else:
+            st.error(errors.get("clauses", "Clause extraction unavailable."))
+
+    with tab_risks:
+        st.subheader("Potential Risk Findings")
+        st.caption(DISCLAIMER)
+
+        if "risks" not in results:
+            st.error(errors.get("risks", "Risk analysis unavailable."))
+        elif not results["risks"]:
+            st.success("🎉 No high-severity concerns identified in this review.")
+        else:
+            risk_list = results["risks"]
+            high_count = sum(1 for r in risk_list if r.level == "High")
+            med_count = sum(1 for r in risk_list if r.level == "Medium")
+            low_count = sum(1 for r in risk_list if r.level == "Low")
+
+            st.markdown(
+                f'<div class="risk-summary-grid">'
+                f'<div class="risk-pill-box high"><span>High Attention</span><strong style="font-size: 1.5rem;">{high_count}</strong></div>'
+                f'<div class="risk-pill-box medium"><span>Medium Attention</span><strong style="font-size: 1.5rem;">{med_count}</strong></div>'
+                f'<div class="risk-pill-box low"><span>Low Attention</span><strong style="font-size: 1.5rem;">{low_count}</strong></div>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+
+            risk_filter = st.radio(
+                "Filter risk severity:",
+                ["All", "High Only", "Medium Only", "Low Only"],
+                horizontal=True,
+            )
+
+            for finding in risk_list:
+                if risk_filter == "High Only" and finding.level != "High":
+                    continue
+                if risk_filter == "Medium Only" and finding.level != "Medium":
+                    continue
+                if risk_filter == "Low Only" and finding.level != "Low":
+                    continue
+                render_finding(finding)
+
+    with tab_export:
+        st.subheader("Export Audit Report")
+        st.caption("Download a formatted Markdown summary of the audit findings.")
+
+        # Build clean export
+        summary_text = results.get("summary").text if "summary" in results else "N/A"
+        clauses_data = []
+        if "clauses" in results:
+            for c in results["clauses"]:
+                clauses_data.append(f"### {c.label} ({c.status})\n- **Value**: {c.value}\n- **Page**: {c.page}\n")
+        risks_data = []
+        if "risks" in results:
+            for r in results["risks"]:
+                risks_data.append(f"### [{r.level}] {r.issue}\n- **Reason**: {r.reason}\n- **Page**: {r.page}\n")
+
+        full_report = (
+            f"# ContractIQ Audit Report: {record.filename}\n\n"
+            f"**Generated**: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n"
+            f"## Executive Summary\n{summary_text}\n\n"
+            f"## Key Clauses\n" + "\n".join(clauses_data) + "\n\n"
+            f"## Risk Findings\n" + "\n".join(risks_data) + "\n\n"
+            f"---\n*{DISCLAIMER}*"
+        )
+
+        st.download_button(
+            label="📥 Download Audit Report (.md)",
+            data=full_report,
+            file_name=f"ContractIQ_{record.filename}_Audit.md",
+            mime="text/markdown",
+            use_container_width=True,
+        )
 
 
 def render_citations(answer_status: str, citations: list[dict]) -> None:
     if not citations:
         return
-    title = "Sources" if answer_status == "answered" else "Retrieved passages"
-    with st.expander(f"{title} ({len(citations)})"):
+    title = "Verified Citations" if answer_status == "answered" else "Retrieved Source Passages"
+    with st.expander(f"📍 {title} ({len(citations)} source passages)", expanded=True):
         for citation in citations:
             st.markdown(
-                f"**[{citation['label']}] {html.escape(citation['filename'])}, "
-                f"page {citation['page_number']}**"
+                f"**[{citation['label']}] `{html.escape(citation['filename'])}` · Page {citation['page_number']}**"
             )
             show_quote(citation["text"])
 
@@ -381,8 +651,8 @@ def render_message(message: dict) -> None:
         st.markdown(sanitize_markdown(message["content"]))
         if message.get("status") == "uncited":
             st.warning(
-                "This answer did not cite the contract, so treat it as unverified. "
-                "The passages searched are listed below."
+                "Notice: This response could not be strictly verified against the retrieved text. "
+                "Review the cited passages below."
             )
         if message["role"] == "assistant":
             render_citations(message.get("status", ""), message.get("citations", []))
@@ -410,64 +680,91 @@ def clear_chat() -> None:
 
 
 def render_assistant(manager: DocumentManager) -> None:
-    page_header("AI Assistant", "Ask questions and get answers with sources.")
+    page_header("AI Assistant", "Contract Q&A with grounded citations and page references.")
     documents = manager.documents()
     if not documents:
-        st.info("Upload a contract in the Document Library first.")
+        st.info("Upload or load a contract in the Document Library to begin chatting.")
         return
 
     doc_ids = selected_ids(manager)
     names = [d.filename for d in documents if d.doc_id in doc_ids]
-    left, right = st.columns([5, 1.4], vertical_alignment="center")
-    if names:
-        left.caption("Searching: " + ", ".join(html.escape(n) for n in names))
-    else:
-        left.warning("No documents are selected in the Document Library.")
-    right.button("Clear chat", on_click=clear_chat)
 
+    top_l, top_r = st.columns([5, 1.4], vertical_alignment="center")
+    with top_l:
+        if names:
+            st.caption("Active Knowledge Base: " + ", ".join(f"`{html.escape(n)}`" for n in names))
+        else:
+            st.warning("⚠️ No documents selected. Check at least one contract in the Document Library.")
+    with top_r:
+        st.button("Clear Chat", on_click=clear_chat, use_container_width=True)
+
+    # Interactive suggested questions
+    st.markdown("**Suggested Questions:**")
+    suggested = [
+        "What is the annual licence fee for the software?",
+        "What notice period is required to terminate?",
+        "What is the cap on the licensor's liability?",
+        "Are there non-compete restrictions?",
+    ]
+    chip_cols = st.columns(len(suggested))
+    selected_prompt = None
+    for idx, prompt_text in enumerate(suggested):
+        if chip_cols[idx].button(prompt_text, key=f"chip_{idx}", use_container_width=True):
+            selected_prompt = prompt_text
+
+    # Render previous messages
     for message in st.session_state.messages:
         render_message(message)
 
-    question = st.chat_input("Ask about your contracts", disabled=not doc_ids)
-    if not question or not question.strip():
-        return
+    # Input handling
+    input_text = st.chat_input("Ask a question about the contracts...", disabled=not doc_ids)
+    question = selected_prompt or input_text
 
-    user_message = {"role": "user", "content": question}
-    st.session_state.messages.append(user_message)
-    st.session_state.questions_asked += 1
-    render_message(user_message)
+    if question and question.strip():
+        user_message = {"role": "user", "content": question}
+        st.session_state.messages.append(user_message)
+        st.session_state.questions_asked += 1
+        render_message(user_message)
 
-    with st.spinner("Searching your contracts..."):
-        try:
-            pipeline = RagPipeline(
-                manager.embedder,
-                manager.store,
-                create_llm_client(manager.settings),
-                manager.settings,
-            )
-            reply = to_message(pipeline.ask(question, doc_ids))
-        except (LLMError, EmbeddingError) as exc:
-            reply = {"role": "assistant", "content": str(exc), "error": True}
+        with st.spinner("Searching contract chunks & generating cited response..."):
+            try:
+                pipeline = RagPipeline(
+                    manager.embedder,
+                    manager.store,
+                    create_llm_client(manager.settings),
+                    manager.settings,
+                )
+                reply = to_message(pipeline.ask(question, doc_ids))
+            except (LLMError, EmbeddingError) as exc:
+                reply = {"role": "assistant", "content": str(exc), "error": True}
 
-    st.session_state.messages.append(reply)
-    render_message(reply)
+        st.session_state.messages.append(reply)
+        render_message(reply)
 
 
 def render_sidebar(manager: DocumentManager) -> None:
     with st.sidebar:
-        st.markdown("## ContractIQ")
-        st.caption("Contract intelligence assistant")
+        st.markdown("## ⚖️ ContractIQ")
+        st.caption("Enterprise Contract Intelligence")
         st.radio("Navigation", PAGES, key="page", label_visibility="collapsed")
         st.divider()
+
+        # System & API status
+        st.markdown("**System Status**")
         if manager.settings.has_api_key:
-            st.caption(f"LLM: {manager.settings.gemini_model}")
+            st.markdown(f'<span class="ciq-badge ciq-success">● Connected</span>', unsafe_allow_html=True)
+            st.caption(f"Model: `{manager.settings.gemini_model}`")
         else:
-            st.warning("No Gemini API key. Add GEMINI_API_KEY to your .env file.")
+            st.markdown(f'<span class="ciq-badge ciq-high">● No API Key</span>', unsafe_allow_html=True)
+            st.caption("Add GEMINI_API_KEY to `.env` for AI features.")
+
+        st.caption(f"Vector Index: `{manager.total_chunks} chunks`")
+        st.divider()
         st.caption(DISCLAIMER)
 
 
 def main() -> None:
-    st.set_page_config(page_title="ContractIQ", layout="wide")
+    st.set_page_config(page_title="ContractIQ", page_icon="⚖️", layout="wide")
     st.markdown(CSS, unsafe_allow_html=True)
     init_state()
     manager = get_manager()
