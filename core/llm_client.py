@@ -49,6 +49,8 @@ def describe_llm_failure(error: Exception) -> str:
     echo prompt content.
     """
     detail = f"{type(error).__name__} {error}".lower()
+    if any(s in detail for s in ("connect", "network", "dns", "unavailable", "503", "socket", "winerror")):
+        return "Gemini could not be reached. Check your internet connection."
     if any(s in detail for s in ("api key", "api_key", "401", "403", "permission")):
         return "Gemini rejected the API key. Check GEMINI_API_KEY in your .env file."
     if any(s in detail for s in ("429", "resource_exhausted", "quota", "rate limit")):
@@ -60,8 +62,6 @@ def describe_llm_failure(error: Exception) -> str:
         )
     if any(s in detail for s in ("timeout", "timed out", "deadline")):
         return "Gemini took too long to respond. Please try again."
-    if any(s in detail for s in ("connect", "network", "dns", "unavailable", "503")):
-        return "Gemini could not be reached. Check your internet connection."
     return "The Gemini request failed. Please try again."
 
 
